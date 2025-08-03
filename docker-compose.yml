@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  vendfinder-poll:
+    build: .
+    container_name: vendfinder-translation-poll
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.vendfinder-poll.rule=Host(`poll.vendfinder.com`)"
+      - "traefik.http.routers.vendfinder-poll.tls=true"
+      - "traefik.http.routers.vendfinder-poll.tls.certresolver=letsencrypt"
+    environment:
+      - NGINX_HOST=poll.vendfinder.com
+      - NGINX_PORT=80
+    volumes:
+      - ./logs:/var/log/nginx
+    networks:
+      - vendfinder-network
+
+networks:
+  vendfinder-network:
+    driver: bridge
+
+# Optional: Add a Redis service for storing poll responses
+# Uncomment if you want to add backend data storage
+#  redis:
+#    image: redis:alpine
+#    container_name: vendfinder-poll-redis
+#    ports:
+#      - "6379:6379"
+#    volumes:
+#      - redis_data:/data
+#    networks:
+#      - vendfinder-network
+#    restart: unless-stopped
+
+#volumes:
+#  redis_data:

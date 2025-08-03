@@ -1,0 +1,318 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: polling-frontend-hpa
+  namespace: vendfinder
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: polling-frontend
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: nginx_active_connections
+      target:
+        type: AverageValue
+        averageValue: "30"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: polling-backend-hpa
+  namespace: vendfinder
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: polling-backend
+  minReplicas: 2
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Object
+    object:
+      metric:
+        name: poll_submissions_per_second
+      target:
+        type: AverageValue
+        averageValue: "10"
+      describedObject:
+        apiVersion: v1
+        kind: Service
+        name: polling-backend-service
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 20
+        periodSeconds: 60
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: polling-frontend-pdb
+  namespace: vendfinder
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: polling-frontend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: polling-backend-pdb
+  namespace: vendfinder
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: polling-backend
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: vendfinder-resource-quota
+  namespace: vendfinder
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    persistentvolumeclaims: "10"
+    services: "10"
+    secrets: "10"
+    configmaps: "10"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: vendfinder-limit-range
+  namespace: vendfinder
+spec:
+  limits:
+  - default:
+      cpu: 200m
+      memory: 256Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+    type: Container
+  - max:
+      cpu: 1
+      memory: 1Gi
+    min:
+      cpu: 50m
+      memory: 64Mi
+    type: Container
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vendfinder-network-policy
+  namespace: vendfinder
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    - podSelector:
+        matchLabels:
+          app: polling-frontend
+    - podSelector:
+        matchLabels:
+          app: polling-backend
+  egress:
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 53
+    - protocol: UDP
+      port: 53
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+  - to:
+    - podSelector:
+        matchLabels:
+          app: polling-backend
+    ports:
+    - protocol: TCP
+      port: 3000
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-autoscaler-status
+  namespace: vendfinder
+data:
+  cluster-autoscaler.yaml: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: cluster-autoscaler
+      namespace: kube-system
+      labels:
+        app: cluster-autoscaler
+    spec:
+      selector:
+        matchLabels:
+          app: cluster-autoscaler
+      template:
+        metadata:
+          labels:
+            app: cluster-autoscaler
+        spec:
+          serviceAccountName: cluster-autoscaler
+          containers:
+          - image: k8s.gcr.io/autoscaling/cluster-autoscaler:v1.21.0
+            name: cluster-autoscaler
+            resources:
+              limits:
+                cpu: 100m
+                memory: 300Mi
+              requests:
+                cpu: 100m
+                memory: 300Mi
+            command:
+            - ./cluster-autoscaler
+            - --v=4
+            - --stderrthreshold=info
+            - --cloud-provider=aws
+            - --skip-nodes-with-local-storage=false
+            - --expander=least-waste
+            - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/ridiculous-lofi-ant
+            - --balance-similar-node-groups
+            - --skip-nodes-with-system-pods=false
+            env:
+            - name: AWS_REGION
+              value: us-east-1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: monitoring-optimization
+  namespace: vendfinder
+data:
+  prometheus-rules.yaml: |
+    groups:
+    - name: capacity-planning
+      rules:
+      - alert: HighCPUUsage
+        expr: (sum(rate(container_cpu_usage_seconds_total{namespace="vendfinder"}[5m])) by (pod) / sum(container_spec_cpu_quota{namespace="vendfinder"} / container_spec_cpu_period{namespace="vendfinder"}) by (pod)) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "Pod {{ $labels.pod }} is using {{ $value }}% CPU"
+
+      - alert: HighMemoryUsage
+        expr: (sum(container_memory_working_set_bytes{namespace="vendfinder"}) by (pod) / sum(container_spec_memory_limit_bytes{namespace="vendfinder"}) by (pod)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Pod {{ $labels.pod }} is using {{ $value }}% memory"
+
+      - alert: ScalingEvent
+        expr: increase(kube_deployment_status_replicas{namespace="vendfinder"}[2m]) != 0
+        for: 1m
+        labels:
+          severity: info
+        annotations:
+          summary: "Deployment scaling event"
+          description: "Deployment {{ $labels.deployment }} has scaled to {{ $value }} replicas"
+
+    - name: cost-optimization
+      rules:
+      - alert: UnderutilizedPods
+        expr: (sum(rate(container_cpu_usage_seconds_total{namespace="vendfinder"}[1h])) by (pod) / sum(container_spec_cpu_quota{namespace="vendfinder"} / container_spec_cpu_period{namespace="vendfinder"}) by (pod)) * 100 < 20
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: "Underutilized pod detected"
+          description: "Pod {{ $labels.pod }} has been using less than 20% CPU for 1 hour"
+
+      - alert: OverprovisionedMemory
+        expr: (sum(container_memory_working_set_bytes{namespace="vendfinder"}) by (pod) / sum(container_spec_memory_limit_bytes{namespace="vendfinder"}) by (pod)) * 100 < 30
+        for: 2h
+        labels:
+          severity: info
+        annotations:
+          summary: "Memory overprovisioning detected"
+          description: "Pod {{ $labels.pod }} is using less than 30% of allocated memory"

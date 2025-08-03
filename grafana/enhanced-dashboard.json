@@ -1,0 +1,296 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "VendFinder Enhanced Polling Analytics",
+    "tags": ["polling", "vendfinder", "ab-testing", "analytics"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Real-time Poll Submissions",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "increase(poll_submissions_total{status=\"success\"}[1h])",
+            "legendFormat": "Submissions Last Hour"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 20}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "A/B Test Performance",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "poll_submissions_total{status=\"success\"} by (ab_test_group)",
+            "legendFormat": "Group {{ab_test_group}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 6, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Engagement Score Distribution",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "poll_engagement_score_histogram",
+            "legendFormat": "Engagement Score"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 12, "y": 0}
+      },
+      {
+        "id": 4,
+        "title": "Conversion Funnel by A/B Group",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "poll_question_completion_rate by (question, ab_test_group)",
+            "legendFormat": "{{question}} - Group {{ab_test_group}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 6, "x": 18, "y": 0}
+      },
+      {
+        "id": 5,
+        "title": "Interest Level vs A/B Group",
+        "type": "barchart",
+        "targets": [
+          {
+            "expr": "poll_interest_responses by (interest_level, ab_test_group)",
+            "legendFormat": "{{interest_level}} - Group {{ab_test_group}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8}
+      },
+      {
+        "id": 6,
+        "title": "Conditional Questions Trigger Rate",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "poll_conditional_questions_shown_total / poll_submissions_total * 100",
+            "legendFormat": "Conditional Question Trigger Rate %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8}
+      },
+      {
+        "id": 7,
+        "title": "Price Sensitivity by User Segment",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "poll_price_willing_histogram by (use_case)",
+            "legendFormat": "{{use_case}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16}
+      },
+      {
+        "id": 8,
+        "title": "Time to Complete vs Engagement Score",
+        "type": "scatterplot",
+        "targets": [
+          {
+            "expr": "poll_completion_time_vs_engagement",
+            "legendFormat": "Time vs Engagement"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24}
+      },
+      {
+        "id": 9,
+        "title": "Feature Demand Ranking",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "poll_feature_selections_total by (feature)",
+            "legendFormat": "{{feature}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        }
+      },
+      {
+        "id": 10,
+        "title": "Enterprise Features Interest (High-Value Users)",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "poll_enterprise_features_total{price_willing=\">20\"} by (feature)",
+            "legendFormat": "{{feature}}"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 32}
+      },
+      {
+        "id": 11,
+        "title": "Privacy Importance (A/B Group B)",
+        "type": "gauge",
+        "targets": [
+          {
+            "expr": "avg(poll_privacy_importance{ab_test_group=\"B\"})",
+            "legendFormat": "Average Privacy Score"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 32},
+        "fieldConfig": {
+          "defaults": {
+            "min": 1,
+            "max": 10,
+            "thresholds": {
+              "steps": [
+                {"color": "green", "value": 1},
+                {"color": "yellow", "value": 5},
+                {"color": "red", "value": 8}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Work Collaboration Types",
+        "type": "donut",
+        "targets": [
+          {
+            "expr": "poll_work_collaboration_types_total by (work_type)",
+            "legendFormat": "{{work_type}}"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 32}
+      },
+      {
+        "id": 13,
+        "title": "User Journey Heatmap",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "poll_interaction_sequence by (question_order, interaction_type)",
+            "legendFormat": "Q{{question_order}}: {{interaction_type}}"
+          }
+        ],
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 38}
+      },
+      {
+        "id": 14,
+        "title": "Drop-off Points Analysis",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "poll_question_dropoff_rate by (question_number)",
+            "legendFormat": "Question {{question_number}} Drop-off %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+        "yAxes": [
+          {
+            "label": "Drop-off Rate %",
+            "max": 100,
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Geographic Distribution",
+        "type": "worldmap",
+        "targets": [
+          {
+            "expr": "poll_submissions_by_country",
+            "legendFormat": "{{country}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48}
+      },
+      {
+        "id": 16,
+        "title": "Device & Browser Analytics",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "poll_submissions_by_device_browser",
+            "legendFormat": "{{device}} - {{browser}}"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 0, "y": 56}
+      },
+      {
+        "id": 17,
+        "title": "Email Capture Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "poll_email_captures_total / poll_submissions_total * 100",
+            "legendFormat": "Email Capture Rate %"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 12, "x": 12, "y": 56},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 30},
+                {"color": "green", "value": 60}
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "templating": {
+      "list": [
+        {
+          "name": "ab_test_group",
+          "type": "query",
+          "query": "label_values(poll_submissions_total, ab_test_group)",
+          "multi": true,
+          "includeAll": true
+        },
+        {
+          "name": "time_range",
+          "type": "interval",
+          "options": ["1h", "6h", "24h", "7d", "30d"]
+        }
+      ]
+    },
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "annotations": {
+      "list": [
+        {
+          "name": "Poll Deployments",
+          "datasource": "Prometheus",
+          "expr": "changes(poll_deployment_timestamp[1d])",
+          "textFormat": "Poll app deployment"
+        }
+      ]
+    },
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

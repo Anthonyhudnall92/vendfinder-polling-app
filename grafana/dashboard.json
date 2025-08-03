@@ -1,0 +1,207 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "VendFinder Polling App Analytics",
+    "tags": ["polling", "vendfinder"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Poll Submissions Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(poll_submissions_total{status=\"success\"}[5m])",
+            "legendFormat": "Successful Submissions/min"
+          },
+          {
+            "expr": "rate(poll_submissions_total{status=\"error\"}[5m])",
+            "legendFormat": "Failed Submissions/min"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "yAxes": [
+          {
+            "label": "Submissions per minute",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "User Interactions by Type",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "poll_interactions_total",
+            "legendFormat": "{{type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+      },
+      {
+        "id": 3,
+        "title": "Response Time Distribution",
+        "type": "heatmap",
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_bucket[5m])",
+            "legendFormat": "{{le}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8}
+      },
+      {
+        "id": 4,
+        "title": "Interest Level Distribution",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "poll_interest_total",
+            "legendFormat": "{{interest}}"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 0, "y": 16}
+      },
+      {
+        "id": 5,
+        "title": "Average Price Willing to Pay",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "poll_avg_price_willing",
+            "legendFormat": "Average Price"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 8, "y": 16},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Completion Rate",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "rate(poll_submissions_total{status=\"success\"}[1h]) / rate(poll_interactions_total{type=\"focus\"}[1h]) * 100",
+            "legendFormat": "Completion Rate %"
+          }
+        ],
+        "gridPos": {"h": 6, "w": 8, "x": 16, "y": 16},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "max": 100,
+            "min": 0
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "User Journey Funnel",
+        "type": "table",
+        "targets": [
+          {
+            "expr": "poll_interactions_total{question=~\".*1\\. How interested.*\"}",
+            "legendFormat": "Q1: Interest Level"
+          },
+          {
+            "expr": "poll_interactions_total{question=~\".*2\\. What situations.*\"}",
+            "legendFormat": "Q2: Use Cases"
+          },
+          {
+            "expr": "poll_interactions_total{question=~\".*3\\. How often.*\"}",
+            "legendFormat": "Q3: Frequency"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 22}
+      },
+      {
+        "id": 8,
+        "title": "Error Rate Over Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m]) * 100",
+            "legendFormat": "Error Rate %"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 22},
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {
+                "params": [5],
+                "type": "gt"
+              },
+              "operator": {
+                "type": "and"
+              },
+              "query": {
+                "params": ["A", "5m", "now"]
+              },
+              "reducer": {
+                "params": [],
+                "type": "avg"
+              },
+              "type": "query"
+            }
+          ],
+          "executionErrorState": "alerting",
+          "for": "1m",
+          "frequency": "10s",
+          "handler": 1,
+          "name": "High Error Rate Alert",
+          "noDataState": "no_data",
+          "notifications": []
+        }
+      },
+      {
+        "id": 9,
+        "title": "Geographic Distribution",
+        "type": "worldmap",
+        "targets": [
+          {
+            "expr": "poll_submissions_by_country",
+            "legendFormat": "{{country}}"
+          }
+        ],
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 30}
+      },
+      {
+        "id": 10,
+        "title": "Device Type Distribution",
+        "type": "piechart",
+        "targets": [
+          {
+            "expr": "poll_submissions_by_device_type",
+            "legendFormat": "{{device_type}}"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40}
+      },
+      {
+        "id": 11,
+        "title": "Time to Complete (Histogram)",
+        "type": "histogram",
+        "targets": [
+          {
+            "expr": "poll_completion_time_histogram",
+            "legendFormat": "Completion Time"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40}
+      }
+    ],
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "refresh": "30s",
+    "schemaVersion": 30,
+    "version": 1
+  }
+}

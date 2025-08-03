@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: polling-app-ingress
+  namespace: vendfinder
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - poll.byte-forward.com
+      secretName: polling-tls
+  rules:
+    - host: poll.byte-forward.com
+      http:
+        paths:
+          # API routes - preserve the /api path
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: polling-backend-service
+                port:
+                  number: 3000
+          # Frontend routes - everything else
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: polling-frontend-service
+                port:
+                  number: 80

@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-frontend
+  namespace: vendfinder
+  labels:
+    app: polling-frontend
+    component: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: polling-frontend
+  template:
+    metadata:
+      labels:
+        app: polling-frontend
+        component: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: your-ecr-repo/vendfinder-polling-frontend:latest
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+      - name: fluent-bit
+        image: fluent/fluent-bit:latest
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "25m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+        volumeMounts:
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+          readOnly: true
+        - name: fluent-bit-config
+          mountPath: /fluent-bit/etc
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+      - name: nginx-logs
+        emptyDir: {}
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polling-frontend-service
+  namespace: vendfinder
+  labels:
+    app: polling-frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  selector:
+    app: polling-frontend

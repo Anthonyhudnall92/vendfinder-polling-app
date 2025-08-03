@@ -1,0 +1,126 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgresql-secret
+  namespace: vendfinder
+type: Opaque
+data:
+  # postgres (base64 encoded)
+  username: cG9zdGdyZXM=
+  # polling_password_123 (base64 encoded)
+  password: cG9sbGluZ19wYXNzd29yZF8xMjM=
+  # polling_db (base64 encoded)
+  database: cG9sbGluZ19kYg==
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-config
+  namespace: vendfinder
+data:
+  POSTGRES_DB: polling_db
+  POSTGRES_USER: postgres
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgresql-pvc
+  namespace: vendfinder
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: gp2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql
+  namespace: vendfinder
+  labels:
+    app: postgresql
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql
+  template:
+    metadata:
+      labels:
+        app: postgresql
+        tier: database
+    spec:
+      containers:
+      - name: postgresql
+        image: postgres:15-alpine
+        ports:
+        - containerPort: 5432
+          name: postgresql
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: postgresql-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: username
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secret
+              key: password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgresql-storage
+          mountPath: /var/lib/postgresql/data
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - pg_isready -U $POSTGRES_USER -d $POSTGRES_DB
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: postgresql-storage
+        persistentVolumeClaim:
+          claimName: postgresql-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-service
+  namespace: vendfinder
+  labels:
+    app: postgresql
+    tier: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+  selector:
+    app: postgresql

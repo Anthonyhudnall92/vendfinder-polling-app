@@ -1,0 +1,68 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-frontend
+  namespace: vendfinder
+  labels:
+    app: polling-frontend
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: polling-frontend
+  template:
+    metadata:
+      labels:
+        app: polling-frontend
+        component: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: 897297238258.dkr.ecr.us-east-1.amazonaws.com/vendfinder-polling-frontend:latest
+        ports:
+        - containerPort: 80
+          name: http
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "25m"
+          limits:
+            memory: "64Mi"
+            cpu: "50m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: nginx-config
+          mountPath: /etc/nginx/nginx.conf
+          subPath: nginx.conf
+      volumes:
+      - name: nginx-config
+        configMap:
+          name: nginx-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polling-frontend-service
+  namespace: vendfinder
+  labels:
+    app: polling-frontend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 80
+    name: http
+  selector:
+    app: polling-frontend

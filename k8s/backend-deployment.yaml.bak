@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: polling-backend
+  namespace: vendfinder
+  labels:
+    app: polling-backend
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: polling-backend
+  template:
+    metadata:
+      labels:
+        app: polling-backend
+        component: backend
+    spec:
+      containers:
+      - name: api
+        image: your-ecr-repo/vendfinder-polling-backend:latest
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: database-secret
+              key: url
+        - name: REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: redis-secret
+              key: url
+        - name: NODE_ENV
+          value: "production"
+        - name: PORT
+          value: "3000"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: polling-backend-service
+  namespace: vendfinder
+  labels:
+    app: polling-backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 3000
+    targetPort: 3000
+    name: http
+  selector:
+    app: polling-backend
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: database-secret
+  namespace: vendfinder
+type: Opaque
+stringData:
+  url: "postgresql://username:password@your-rds-endpoint:5432/polling_db"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: vendfinder
+type: Opaque
+stringData:
+  url: "redis://your-elasticache-endpoint:6379"

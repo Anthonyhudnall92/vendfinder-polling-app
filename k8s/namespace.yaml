@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: vendfinder
+  labels:
+    name: vendfinder
+    app: vendfinder-poll

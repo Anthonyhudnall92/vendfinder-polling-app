@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Translation Chat - Tell Us What You Think!</title>
+    <style>
+        /* Keep existing styles - same as original */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        /* ... (keep all existing CSS) ... */
+    </style>
+    <!-- Add analytics tracking -->
+    <script>
+// Enhanced tracking with A/B testing and conditional logic
+// A/B Testing Feature
+const abTestGroup = Math.random()  0.5 ? 'A' : 'B';
+document.body.classList.add(`ab-group-${abTestGroup}`);
+
+// Conditional Logic: Show additional questions for Group B
+const additionalQuestions = document.getElementById('additionalQuestions');
+if (abTestGroup === 'B') {
+    additionalQuestions.style.display = 'block';
+}
+
+class PollAnalytics {
+            constructor() {
+                this.sessionId = this.generateSessionId();
+                this.interactions = [];
+                this.startTime = Date.now();
+                this.setupEventListeners();
+            }
+
+            generateSessionId() {
+                return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            trackInteraction(event) {
+                const interaction = {
+                    sessionId: this.sessionId,
+                    timestamp: Date.now(),
+                    type: event.type,
+                    element: event.target.name || event.target.id || event.target.tagName.toLowerCase(),
+                    value: event.target.value,
+                    question: this.getQuestionContext(event.target),
+                    timeOnPage: Date.now() - this.startTime,
+                    userAgent: navigator.userAgent,
+                    viewport: {
+                        width: window.innerWidth,
+                        height: window.innerHeight
+                    }
+                };
+                
+                this.interactions.push(interaction);
+                this.sendInteractionToBackend(interaction);
+            }
+
+            getQuestionContext(element) {
+                const questionGroup = element.closest('.question-group');
+                if (questionGroup) {
+                    const h3 = questionGroup.querySelector('h3');
+                    return h3 ? h3.textContent : 'unknown';
+                }
+                return 'general';
+            }
+
+            async sendInteractionToBackend(interaction) {
+                try {
+                    await fetch('/api/poll/interaction', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(interaction)
+                    });
+                } catch (error) {
+                    console.warn('Failed to send interaction:', error);
+                    // Store in localStorage as fallback
+                    const stored = JSON.parse(localStorage.getItem('poll_interactions') || '[]');
+                    stored.push(interaction);
+                    localStorage.setItem('poll_interactions', JSON.stringify(stored.slice(-100))); // Keep last 100
+                }
+            }
+
+            setupEventListeners() {
+                // Track all form interactions
+                document.addEventListener('change', (e) => {
+                    if (e.target.matches('input, textarea, select')) {
+                        this.trackInteraction(e);
+                    }
+                });
+
+                // Track slider interactions
+                document.addEventListener('input', (e) => {
+                    if (e.target.matches('input[type="range"]')) {
+                        this.trackInteraction(e);
+                    }
+                });
+
+                // Track focus events (engagement)
+                document.addEventListener('focus', (e) => {
+                    if (e.target.matches('input, textarea, select')) {
+                        this.trackInteraction(e);
+                    }
+                }, true);
+
+                // Track page visibility changes
+                document.addEventListener('visibilitychange', () => {
+                    this.trackInteraction({
+                        type: 'visibility_change',
+                        target: { name: 'page', value: document.hidden ? 'hidden' : 'visible' }
+                    });
+                });
+
+                // Track page unload
+                window.addEventListener('beforeunload', () => {
+                    this.sendBatch();
+                });
+            }
+
+            async sendBatch() {
+                if (this.interactions.length === 0) return;
+                
+                try {
+                    await fetch('/api/poll/interactions/batch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            sessionId: this.sessionId,
+                            interactions: this.interactions
+                        })
+                    });
+                } catch (error) {
+                    console.warn('Failed to send batch:', error);
+                }
+            }
+        }
+
+        // Initialize analytics
+        let analytics;
+        document.addEventListener('DOMContentLoaded', () => {
+            analytics = new PollAnalytics();
+        });
+    </script>
+</head>
+<body>
+    <!-- Keep all existing HTML content -->
+    <!-- ... (same as original) ... -->
+
+    <script>
+        // Enhanced form submission with backend integration
+        const form = document.getElementById('pollForm');
+        const progressFill = document.getElementById('progressFill');
+        const priceSlider = document.getElementById('priceSlider');
+        const priceValue = document.getElementById('priceValue');
+        const emailField = document.getElementById('emailField');
+        const resultsSection = document.getElementById('resultsSection');
+
+        // Keep all existing JavaScript functions...
+        // (updateProgress, price slider, email field, etc.)
+
+        // Enhanced form submission
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitButton = form.querySelector('.submit-btn');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+            
+            try {
+                // Collect all form data
+                const formData = new FormData(form);
+                const responses = {};
+                
+                // Get all form values
+                for (let [key, value] of formData.entries()) {
+                    if (responses[key]) {
+                        if (Array.isArray(responses[key])) {
+                            responses[key].push(value);
+                        } else {
+                            responses[key] = [responses[key], value];
+                        }
+                    } else {
+                        responses[key] = value;
+                    }
+                }
+
+                // Add additional metadata
+                responses.price_willing = priceSlider.value;
+                responses.timestamp = new Date().toISOString();
+                responses.sessionId = analytics.sessionId;
+                responses.timeToComplete = Date.now() - analytics.startTime;
+                responses.interactionCount = analytics.interactions.length;
+                responses.userAgent = navigator.userAgent;
+                responses.viewport = {
+                    width: window.innerWidth,
+                    height: window.innerHeight
+                };
+                responses.referrer = document.referrer;
+
+                // Send to backend API
+                const response = await fetch('/api/poll/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(responses)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                // Show success message
+                form.style.display = 'none';
+                resultsSection.style.display = 'block';
+                document.querySelector('.container').scrollIntoView({ behavior: 'smooth' });
+
+                // Send final analytics batch
+                analytics.sendBatch();
+
+            } catch (error) {
+                console.error('Submission failed:', error);
+                
+                // Fallback to localStorage
+                const existingResponses = JSON.parse(localStorage.getItem('pollResponses') || '[]');
+                existingResponses.push(responses);
+                localStorage.setItem('pollResponses', JSON.stringify(existingResponses));
+                
+                // Show error message but still show thank you
+                alert('There was an issue submitting your response, but it has been saved locally. Thank you for your feedback!');
+                form.style.display = 'none';
+                resultsSection.style.display = 'block';
+                document.querySelector('.container').scrollIntoView({ behavior: 'smooth' });
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit My Feedback 🚀';
+            }
+        });
+
+        // Keep all other existing JavaScript...
+    </script>
+</body>
+</html>

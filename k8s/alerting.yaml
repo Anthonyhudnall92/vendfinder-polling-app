@@ -1,0 +1,287 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: notification-secrets
+  namespace: vendfinder
+type: Opaque
+stringData:
+  slack-webhook-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  email-smtp-password: "your-smtp-password"
+  anthony-email: "devman31122@gmail.com"
+  John-email: "john@vendfinder.com"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: vendfinder
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@vendfinder.com'
+      smtp_auth_username: 'alerts@vendfinder.com'
+      smtp_auth_password_file: '/etc/secrets/email-smtp-password'
+
+    route:
+      group_by: ['alertname', 'severity']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'default-receiver'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'critical-alerts'
+        - match:
+            alertname: 'PollSubmissionSpike'
+          receiver: 'poll-activity-alerts'
+
+    receivers:
+      - name: 'default-receiver'
+        slack_configs:
+          - api_url_file: '/etc/secrets/slack-webhook-url'
+            channel: '#vendfinder-alerts'
+            title: 'VendFinder Polling App Alert'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Severity:* {{ .Labels.severity }}
+              {{ end }}
+
+      - name: 'critical-alerts'
+        slack_configs:
+          - api_url_file: '/etc/secrets/slack-webhook-url'
+            channel: '#vendfinder-critical'
+            title: '🚨 CRITICAL: VendFinder Polling App'
+            text: |
+              <!channel> Critical issue detected!
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Time:* {{ .StartsAt }}
+              {{ end }}
+        email_configs:
+          - to: 'devman31122@gmail.com'
+            subject: '🚨 CRITICAL: VendFinder Polling App Alert'
+            html: |
+              <h2>Critical alert triggered in VendFinder Polling App:</h2>
+              {{ range .Alerts }}
+              <p><strong>Alert:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+              <p><strong>Time:</strong> {{ .StartsAt }}</p>
+              {{ end }}
+          - to: 'john@vendfinder.com'
+            subject: '🚨 CRITICAL: VendFinder Polling App Alert'
+            html: |
+              <h2>Critical alert triggered in VendFinder Polling App:</h2>
+              {{ range .Alerts }}
+              <p><strong>Alert:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+              <p><strong>Time:</strong> {{ .StartsAt }}</p>
+              {{ end }}
+
+      - name: 'poll-activity-alerts'
+        slack_configs:
+          - api_url_file: '/etc/secrets/slack-webhook-url'
+            channel: '#vendfinder-polling'
+            title: '📊 Polling Activity Update'
+            text: |
+              {{ range .Alerts }}
+              {{ if eq .Labels.alertname "PollSubmissionSpike" }}
+              🎉 Great news! Poll submissions are spiking!
+              *Current Rate:* {{ .Annotations.current_rate }}
+              *Threshold:* {{ .Annotations.threshold }}
+              {{ else if eq .Labels.alertname "LowEngagementAlert" }}
+              ⚠️ User engagement is below normal
+              *Current Engagement:* {{ .Annotations.engagement_score }}%
+              {{ else if eq .Labels.alertname "HighDropOffRate" }}
+              📉 High drop-off detected at {{ .Labels.question }}
+              *Drop-off Rate:* {{ .Annotations.dropoff_rate }}%
+              {{ end }}
+              {{ end }}
+        email_configs:
+          - to: 'devman31122@gmail.com'
+            subject: '📊 VendFinder Polling Activity Update'
+            html: |
+              <h2>Poll activity update from VendFinder:</h2>
+              {{ range .Alerts }}
+              <p><strong>{{ .Annotations.summary }}</strong></p>
+              <p>{{ .Annotations.description }}</p>
+              {{ end }}
+          - to: 'john@vendfinder.com'
+            subject: '📊 VendFinder Polling Activity Update'
+            html: |
+              <h2>Poll activity update from VendFinder:</h2>
+              {{ range .Alerts }}
+              <p><strong>{{ .Annotations.summary }}</strong></p>
+              <p>{{ .Annotations.description }}</p>
+              {{ end }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: enhanced-polling-alerts
+  namespace: vendfinder
+  labels:
+    app: polling-app
+spec:
+  groups:
+    - name: polling-business-metrics
+      rules:
+        - alert: PollSubmissionSpike
+          expr: increase(poll_submissions_total{status="success"}[5m]) > 10
+          for: 1m
+          labels:
+            severity: info
+          annotations:
+            summary: "High poll submission activity detected"
+            description: "Poll submissions have increased significantly in the last 5 minutes"
+            current_rate: "{{ $value }}"
+            threshold: "10"
+
+        - alert: LowEngagementAlert
+          expr: avg(poll_engagement_score) < 30
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Low user engagement detected"
+            description: "Average engagement score has dropped below 30% for 5 minutes"
+            engagement_score: "{{ $value }}"
+
+        - alert: HighDropOffRate
+          expr: poll_question_dropoff_rate > 50
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High drop-off rate at question {{ $labels.question }}"
+            description: "More than 50% of users are dropping off at this question"
+            dropoff_rate: "{{ $value }}"
+
+        - alert: ABTestSignificantDifference
+          expr: abs(poll_submissions_total{ab_test_group="A"} - poll_submissions_total{ab_test_group="B"}) / (poll_submissions_total{ab_test_group="A"} + poll_submissions_total{ab_test_group="B"}) > 0.2
+          for: 10m
+          labels:
+            severity: info
+          annotations:
+            summary: "Significant difference in A/B test performance"
+            description: "A/B test groups show >20% difference in performance"
+
+        - alert: PremiumUserSpike
+          expr: increase(poll_responses{price_willing=">20"}[1h]) > 5
+          for: 1m
+          labels:
+            severity: info
+          annotations:
+            summary: "High-value users spike detected"
+            description: "{{ $value }} users willing to pay >$20/month in the last hour"
+
+        - alert: FeatureRequestTrend
+          expr: increase(poll_feature_selections_total[1h]) by (feature) > 20
+          for: 2m
+          labels:
+            severity: info
+          annotations:
+            summary: "Popular feature trend: {{ $labels.feature }}"
+            description: "{{ $labels.feature }} has been selected {{ $value }} times in the last hour"
+
+    - name: polling-technical-alerts
+      rules:
+        - alert: HighResponseTime
+          expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="polling-backend"}[5m])) > 0.5
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High response time detected"
+            description: "95th percentile response time is {{ $value }}s"
+
+        - alert: HighErrorRate
+          expr: rate(http_requests_total{status=~"5..", job="polling-backend"}[5m]) / rate(http_requests_total{job="polling-backend"}[5m]) > 0.05
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate detected"
+            description: "Error rate is {{ $value | humanizePercentage }}"
+
+        - alert: DatabaseConnectionIssues
+          expr: poll_database_connections_failed_total > 5
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Database connection failures"
+            description: "{{ $value }} database connection failures detected"
+
+        - alert: RedisConnectionLoss
+          expr: poll_redis_connection_status == 0
+          for: 30s
+          labels:
+            severity: critical
+          annotations:
+            summary: "Redis connection lost"
+            description: "Connection to Redis cache has been lost"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: vendfinder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:latest
+        ports:
+        - containerPort: 9093
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: secrets
+          mountPath: /etc/secrets
+          readOnly: true
+        args:
+        - --config.file=/etc/alertmanager/alertmanager.yml
+        - --storage.path=/alertmanager
+        - --web.external-url=http://alertmanager.vendfinder.com
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+      - name: secrets
+        secret:
+          secretName: notification-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-service
+  namespace: vendfinder
+spec:
+  selector:
+    app: alertmanager
+  ports:
+  - port: 9093
+    targetPort: 9093
+  type: ClusterIP

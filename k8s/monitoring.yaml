@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: ServiceMonitor
+metadata:
+  name: polling-app-metrics
+  namespace: vendfinder
+  labels:
+    app: polling-app
+spec:
+  selector:
+    matchLabels:
+      app: polling-backend
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: polling-app-alerts
+  namespace: vendfinder
+  labels:
+    app: polling-app
+spec:
+  groups:
+  - name: polling-app
+    rules:
+    - alert: HighResponseTime
+      expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High response time detected"
+        description: "95th percentile response time is above 500ms"
+    
+    - alert: HighErrorRate
+      expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate detected"
+        description: "Error rate is above 5%"
+    
+    - alert: PollSubmissionFailure
+      expr: rate(poll_submissions_failed_total[5m]) > 0
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Poll submission failures detected"
+        description: "Users are unable to submit poll responses"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-config
+  namespace: vendfinder
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush         1
+        Log_Level     info
+        Daemon        off
+        Parsers_File  parsers.conf
+        HTTP_Server   On
+        HTTP_Listen   0.0.0.0
+        HTTP_Port     2020
+
+    [INPUT]
+        Name              tail
+        Path              /var/log/nginx/access.log
+        Parser            nginx_json
+        Tag               nginx.access
+        Refresh_Interval  5
+
+    [OUTPUT]
+        Name  prometheus_exporter
+        Match nginx.access
+        Host  0.0.0.0
+        Port  2021
+        
+    [OUTPUT]
+        Name  cloudwatch_logs
+        Match nginx.access
+        region us-east-1  # Change to your region
+        log_group_name /aws/eks/polling-app/nginx
+        log_stream_prefix nginx-
+        auto_create_group true
+
+  parsers.conf: |
+    [PARSER]
+        Name   nginx_json
+        Format json
+        Time_Key timestamp
+        Time_Format %Y-%m-%dT%H:%M:%S%z

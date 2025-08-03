@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Translation Chat - Enhanced Survey</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #ff8c42 0%, #ff6b1a 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff8c42 0%, #ff6b1a 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .ab-test-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            color: white;
+            z-index: 1000;
+        }
+
+        .question-group {
+            margin-bottom: 30px;
+            padding: 25px;
+            background: #f8f9ff;
+            border-radius: 10px;
+            border-left: 4px solid #ff8c42;
+            transition: all 0.3s ease;
+        }
+
+        .question-group.conditional {
+            display: none;
+            border-left-color: #42a5ff;
+            background: #f0f8ff;
+        }
+
+        .question-group.ab-test-b {
+            border-left-color: #9b42ff;
+            background: #f8f0ff;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff8c42, #ff6b1a);
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .radio-group, .checkbox-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .radio-option, .checkbox-option {
+            display: flex;
+            align-items: center;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .radio-option:hover, .checkbox-option:hover {
+            background: #e6e9ff;
+            border-color: #ff8c42;
+        }
+
+        .slider-container {
+            margin: 20px 0;
+        }
+
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #ddd;
+            outline: none;
+            margin: 10px 0;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #ff8c42;
+            cursor: pointer;
+        }
+
+        .conditional-trigger {
+            background: #fffacd;
+            border-left-color: #ffd700;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 1em;
+            resize: vertical;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #ff8c42 0%, #ff6b1a 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            font-weight: 600;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 140, 66, 0.3);
+        }
+
+        .engagement-meter {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="ab-test-indicator" id="abTestIndicator">Test Group: Loading...</div>
+    <div class="engagement-meter" id="engagementMeter">
+        <div>Engagement: <span id="engagementScore">0%</span></div>
+        <div>Time: <span id="timeSpent">0s</span></div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>VendFinder Global Translation Chat</h1>
+            <p>Enhanced Survey with Personalized Questions</p>
+        </div>
+
+        <form id="pollForm" class="form-section" style="padding: 40px 30px;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+
+            <!-- Existing Questions -->
+            <div class="question-group">
+                <h3>1. How interested are you in using a real-time translation chat app?</h3>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="interest" value="very-interested" required>
+                        <span>Very interested - I would definitely use this!</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="interest" value="somewhat-interested">
+                        <span>Somewhat interested - I might try it</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="interest" value="neutral">
+                        <span>Neutral - not sure if I need this</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="interest" value="not-interested">
+                        <span>Not interested - I don't see the value</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Conditional Question - Shows for "very-interested" -->
+            <div class="question-group conditional" id="veryInterestedFollow">
+                <h3>1a. What excites you most about real-time translation?</h3>
+                <div class="checkbox-group">
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="excitement-factors" value="instant-communication">
+                        <span>🚀 Instant communication with anyone</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="excitement-factors" value="business-opportunities">
+                        <span>💼 New business opportunities</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="excitement-factors" value="cultural-exchange">
+                        <span>🌍 Cultural exchange and learning</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="excitement-factors" value="travel-convenience">
+                        <span>✈️ Travel convenience</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="excitement-factors" value="educational-use">
+                        <span>📚 Educational and learning purposes</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- A/B Test Question - Only for Group B -->
+            <div class="question-group ab-test-b" id="abTestQuestion">
+                <h3>2a. How important is privacy in translation apps? (Group B Only)</h3>
+                <div class="slider-container">
+                    <input type="range" min="1" max="10" value="5" class="slider" id="privacySlider">
+                    <div class="slider-labels">
+                        <span>Not Important</span>
+                        <span id="privacyValue">Moderate</span>
+                        <span>Extremely Important</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="question-group">
+                <h3>2. What situations would you most likely use this app for?</h3>
+                <div class="checkbox-group">
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="use-cases" value="work-collaboration">
+                        <span>🏢 Work collaboration with international colleagues</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="use-cases" value="language-learning">
+                        <span>📚 Language learning and practice</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="use-cases" value="travel">
+                        <span>✈️ Communicating while traveling</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="use-cases" value="gaming">
+                        <span>🎮 Gaming with international players</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="use-cases" value="social">
+                        <span>👥 Making friends from other countries</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="use-cases" value="family">
+                        <span>👨‍👩‍👧‍👦 Family communication</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Conditional Question - Shows for work-collaboration -->
+            <div class="question-group conditional" id="workCollaborationFollow">
+                <h3>2a. What type of work collaboration do you need translation for?</h3>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="work-type" value="client-meetings">
+                        <span>Client meetings and presentations</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="work-type" value="team-communication">
+                        <span>Daily team communication</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="work-type" value="customer-support">
+                        <span>Customer support</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="work-type" value="documentation">
+                        <span>Document translation and sharing</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="question-group">
+                <h3>3. How often do you currently need cross-language communication?</h3>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="frequency" value="daily" required>
+                        <span>Daily</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="frequency" value="weekly">
+                        <span>Weekly</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="frequency" value="monthly">
+                        <span>Monthly</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="frequency" value="rarely">
+                        <span>Rarely</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Enhanced pricing with conditional logic -->
+            <div class="question-group">
+                <h3>4. How much would you be willing to pay per month?</h3>
+                <div class="slider-container">
+                    <input type="range" min="0" max="50" value="10" class="slider" id="priceSlider">
+                    <div class="slider-labels">
+                        <span>Free</span>
+                        <span id="priceValue">$10/month</span>
+                        <span>$50+/month</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Conditional Question - Shows for high-value users (>$20) -->
+            <div class="question-group conditional" id="highValueFollow">
+                <h3>4a. What enterprise features would justify premium pricing?</h3>
+                <div class="checkbox-group">
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="enterprise-features" value="api-integration">
+                        <span>🔧 API integration with existing tools</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="enterprise-features" value="custom-models">
+                        <span>🧠 Custom translation models for your industry</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="enterprise-features" value="analytics">
+                        <span>📊 Usage analytics and reporting</span>
+                    </label>
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="enterprise-features" value="priority-support">
+                        <span>🚨 24/7 priority support</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="question-group">
+                <h3>5. Additional thoughts or specific use cases?</h3>
+                <textarea name="feedback" placeholder="Tell us about your specific needs, concerns, or ideas..."></textarea>
+            </div>
+
+            <div class="question-group">
+                <h3>6. Stay updated on our progress?</h3>
+                <div class="radio-group">
+                    <label class="radio-option">
+                        <input type="radio" name="notify" value="yes" required>
+                        <span>Yes, keep me updated!</span>
+                    </label>
+                    <label class="radio-option">
+                        <input type="radio" name="notify" value="no">
+                        <span>No thanks</span>
+                    </label>
+                </div>
+                <div id="emailField" style="display: none; margin-top: 15px;">
+                    <input type="email" name="email" placeholder="Enter your email address" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;">
+                </div>
+            </div>
+
+            <div class="submit-section" style="text-align: center; padding: 30px;">
+                <button type="submit" class="submit-btn">Submit Enhanced Survey 🚀</button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // A/B Testing Setup
+        const abTestGroup = Math.random() < 0.5 ? 'A' : 'B';
+        document.body.classList.add(`ab-group-${abTestGroup}`);
+        document.getElementById('abTestIndicator').textContent = `Test Group: ${abTestGroup}`;
+
+        // Show A/B test questions for Group B
+        if (abTestGroup === 'B') {
+            document.getElementById('abTestQuestion').style.display = 'block';
+        }
+
+        // Enhanced Analytics Class
+        class EnhancedPollAnalytics {
+            constructor() {
+                this.sessionId = this.generateSessionId();
+                this.interactions = [];
+                this.startTime = Date.now();
+                this.abTestGroup = abTestGroup;
+                this.engagementScore = 0;
+                this.setupEventListeners();
+                this.startEngagementTracking();
+            }
+
+            generateSessionId() {
+                return 'sess_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            }
+
+            startEngagementTracking() {
+                setInterval(() => {
+                    const timeSpent = Math.floor((Date.now() - this.startTime) / 1000);
+                    document.getElementById('timeSpent').textContent = `${timeSpent}s`;
+                    
+                    // Calculate engagement score
+                    const filledFields = document.querySelectorAll('input:checked, textarea:not(:empty)').length;
+                    const totalFields = document.querySelectorAll('input[type="radio"]:first-child, input[type="checkbox"], textarea').length;
+                    this.engagementScore = Math.round((filledFields / totalFields) * 100);
+                    document.getElementById('engagementScore').textContent = `${this.engagementScore}%`;
+                }, 1000);
+            }
+
+            trackInteraction(event) {
+                const interaction = {
+                    sessionId: this.sessionId,
+                    timestamp: Date.now(),
+                    type: event.type,
+                    element: event.target.name || event.target.id || event.target.tagName.toLowerCase(),
+                    value: event.target.value,
+                    question: this.getQuestionContext(event.target),
+                    timeOnPage: Date.now() - this.startTime,
+                    abTestGroup: this.abTestGroup,
+                    engagementScore: this.engagementScore,
+                    userAgent: navigator.userAgent,
+                    viewport: {
+                        width: window.innerWidth,
+                        height: window.innerHeight
+                    }
+                };
+                
+                this.interactions.push(interaction);
+                this.sendInteractionToBackend(interaction);
+            }
+
+            getQuestionContext(element) {
+                const questionGroup = element.closest('.question-group');
+                if (questionGroup) {
+                    const h3 = questionGroup.querySelector('h3');
+                    return h3 ? h3.textContent : 'unknown';
+                }
+                return 'general';
+            }
+
+            async sendInteractionToBackend(interaction) {
+                try {
+                    await fetch('/api/poll/interaction', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(interaction)
+                    });
+                } catch (error) {
+                    console.warn('Failed to send interaction:', error);
+                    const stored = JSON.parse(localStorage.getItem('poll_interactions') || '[]');
+                    stored.push(interaction);
+                    localStorage.setItem('poll_interactions', JSON.stringify(stored.slice(-100)));
+                }
+            }
+
+            setupEventListeners() {
+                // Track all interactions
+                document.addEventListener('change', (e) => {
+                    if (e.target.matches('input, textarea, select')) {
+                        this.trackInteraction(e);
+                        this.handleConditionalLogic(e);
+                    }
+                });
+
+                document.addEventListener('input', (e) => {
+                    if (e.target.matches('input[type="range"]')) {
+                        this.trackInteraction(e);
+                        this.handleSliderUpdates(e);
+                    }
+                });
+
+                document.addEventListener('focus', (e) => {
+                    if (e.target.matches('input, textarea, select')) {
+                        this.trackInteraction(e);
+                    }
+                }, true);
+            }
+
+            handleConditionalLogic(event) {
+                // Show follow-up for very interested users
+                if (event.target.name === 'interest' && event.target.value === 'very-interested') {
+                    document.getElementById('veryInterestedFollow').style.display = 'block';
+                }
+
+                // Show work collaboration follow-up
+                if (event.target.name === 'use-cases' && event.target.value === 'work-collaboration' && event.target.checked) {
+                    document.getElementById('workCollaborationFollow').style.display = 'block';
+                } else if (event.target.name === 'use-cases' && event.target.value === 'work-collaboration' && !event.target.checked) {
+                    document.getElementById('workCollaborationFollow').style.display = 'none';
+                }
+
+                // Show email field
+                if (event.target.name === 'notify' && event.target.value === 'yes') {
+                    document.getElementById('emailField').style.display = 'block';
+                    document.querySelector('input[name="email"]').required = true;
+                } else if (event.target.name === 'notify' && event.target.value === 'no') {
+                    document.getElementById('emailField').style.display = 'none';
+                    document.querySelector('input[name="email"]').required = false;
+                }
+            }
+
+            handleSliderUpdates(event) {
+                if (event.target.id === 'priceSlider') {
+                    const value = event.target.value;
+                    const priceValue = document.getElementById('priceValue');
+                    
+                    if (value == 0) {
+                        priceValue.textContent = 'Free';
+                    } else if (value >= 50) {
+                        priceValue.textContent = '$50+/month';
+                    } else {
+                        priceValue.textContent = `$${value}/month`;
+                    }
+
+                    // Show enterprise features for high-value users
+                    if (value > 20) {
+                        document.getElementById('highValueFollow').style.display = 'block';
+                    } else {
+                        document.getElementById('highValueFollow').style.display = 'none';
+                    }
+                }
+
+                if (event.target.id === 'privacySlider') {
+                    const value = event.target.value;
+                    const privacyValue = document.getElementById('privacyValue');
+                    
+                    if (value <= 3) {
+                        privacyValue.textContent = 'Not Important';
+                    } else if (value <= 7) {
+                        privacyValue.textContent = 'Moderate';
+                    } else {
+                        privacyValue.textContent = 'Very Important';
+                    }
+                }
+            }
+
+            async sendBatch() {
+                if (this.interactions.length === 0) return;
+                
+                try {
+                    await fetch('/api/poll/interactions/batch', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            sessionId: this.sessionId,
+                            interactions: this.interactions,
+                            abTestGroup: this.abTestGroup,
+                            finalEngagementScore: this.engagementScore
+                        })
+                    });
+                } catch (error) {
+                    console.warn('Failed to send batch:', error);
+                }
+            }
+        }
+
+        // Initialize enhanced analytics
+        let analytics;
+        document.addEventListener('DOMContentLoaded', () => {
+            analytics = new EnhancedPollAnalytics();
+        });
+
+        // Enhanced form submission
+        document.getElementById('pollForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const submitButton = this.querySelector('.submit-btn');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Submitting...';
+            
+            try {
+                const formData = new FormData(this);
+                const responses = {};
+                
+                for (let [key, value] of formData.entries()) {
+                    if (responses[key]) {
+                        if (Array.isArray(responses[key])) {
+                            responses[key].push(value);
+                        } else {
+                            responses[key] = [responses[key], value];
+                        }
+                    } else {
+                        responses[key] = value;
+                    }
+                }
+
+                // Add enhanced metadata
+                responses.sessionId = analytics.sessionId;
+                responses.abTestGroup = analytics.abTestGroup;
+                responses.timeToComplete = Date.now() - analytics.startTime;
+                responses.interactionCount = analytics.interactions.length;
+                responses.finalEngagementScore = analytics.engagementScore;
+                responses.priceWilling = document.getElementById('priceSlider').value;
+                responses.timestamp = new Date().toISOString();
+
+                const response = await fetch('/api/poll/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(responses)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                // Success
+                alert('Thank you! Your enhanced survey response has been submitted successfully.');
+                analytics.sendBatch();
+
+            } catch (error) {
+                console.error('Submission failed:', error);
+                alert('Thank you for your feedback! We encountered a technical issue but your responses have been saved locally.');
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Submit Enhanced Survey 🚀';
+            }
+        });
+    </script>
+</body>
+</html>

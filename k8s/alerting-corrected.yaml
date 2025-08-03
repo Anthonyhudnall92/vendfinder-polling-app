@@ -1,0 +1,186 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: notification-secrets
+  namespace: vendfinder
+type: Opaque
+stringData:
+  slack-webhook-url: "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+  email-smtp-password: "your-smtp-password"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alertmanager-config
+  namespace: vendfinder
+data:
+  alertmanager.yml: |
+    global:
+      smtp_smarthost: 'smtp.gmail.com:587'
+      smtp_from: 'alerts@vendfinder.com'
+      smtp_auth_username: 'alerts@vendfinder.com'
+      smtp_auth_password_file: '/etc/secrets/email-smtp-password'
+
+    route:
+      group_by: ['alertname', 'severity']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 1h
+      receiver: 'default-receiver'
+      routes:
+        - match:
+            severity: critical
+          receiver: 'critical-alerts'
+        - match:
+            alertname: 'PollSubmissionSpike'
+          receiver: 'poll-activity-alerts'
+
+    receivers:
+      - name: 'default-receiver'
+        slack_configs:
+          - api_url_file: '/etc/secrets/slack-webhook-url'
+            channel: '#vendfinder-alerts'
+            title: 'VendFinder Polling App Alert'
+            text: |
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Severity:* {{ .Labels.severity }}
+              {{ end }}
+
+      - name: 'critical-alerts'
+        slack_configs:
+          - api_url_file: '/etc/secrets/slack-webhook-url'
+            channel: '#vendfinder-critical'
+            title: '🚨 CRITICAL: VendFinder Polling App'
+            text: |
+              <!channel> Critical issue detected!
+              {{ range .Alerts }}
+              *Alert:* {{ .Annotations.summary }}
+              *Description:* {{ .Annotations.description }}
+              *Time:* {{ .StartsAt }}
+              {{ end }}
+        email_configs:
+          - to: 'devman31122@gmail.com'
+            headers:
+              Subject: '🚨 CRITICAL: VendFinder Polling App Alert'
+            html: |
+              <h2>🚨 Critical Alert - VendFinder Polling App</h2>
+              {{ range .Alerts }}
+              <p><strong>Alert:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+              <p><strong>Time:</strong> {{ .StartsAt }}</p>
+              <hr>
+              {{ end }}
+          - to: 'john@vendfinder.com'
+            headers:
+              Subject: '🚨 CRITICAL: VendFinder Polling App Alert'
+            html: |
+              <h2>🚨 Critical Alert - VendFinder Polling App</h2>
+              {{ range .Alerts }}
+              <p><strong>Alert:</strong> {{ .Annotations.summary }}</p>
+              <p><strong>Description:</strong> {{ .Annotations.description }}</p>
+              <p><strong>Severity:</strong> {{ .Labels.severity }}</p>
+              <p><strong>Time:</strong> {{ .StartsAt }}</p>
+              <hr>
+              {{ end }}
+
+      - name: 'poll-activity-alerts'
+        slack_configs:
+          - api_url_file: '/etc/secrets/slack-webhook-url'
+            channel: '#vendfinder-polling'
+            title: '📊 Polling Activity Update'
+            text: |
+              {{ range .Alerts }}
+              {{ if eq .Labels.alertname "PollSubmissionSpike" }}
+              🎉 Great news! Poll submissions are spiking!
+              *Current Rate:* {{ .Annotations.current_rate }}
+              *Threshold:* {{ .Annotations.threshold }}
+              {{ else if eq .Labels.alertname "LowEngagementAlert" }}
+              ⚠️ User engagement is below normal
+              *Current Engagement:* {{ .Annotations.engagement_score }}%
+              {{ else if eq .Labels.alertname "HighDropOffRate" }}
+              📉 High drop-off detected at {{ .Labels.question }}
+              *Drop-off Rate:* {{ .Annotations.dropoff_rate }}%
+              {{ end }}
+              {{ end }}
+        email_configs:
+          - to: 'devman31122@gmail.com'
+            headers:
+              Subject: '📊 VendFinder Polling Activity Update'
+            html: |
+              <h2>📊 Polling Activity Update</h2>
+              {{ range .Alerts }}
+              <p><strong>{{ .Annotations.summary }}</strong></p>
+              <p>{{ .Annotations.description }}</p>
+              <hr>
+              {{ end }}
+          - to: 'john@vendfinder.com'
+            headers:
+              Subject: '📊 VendFinder Polling Activity Update'
+            html: |
+              <h2>📊 Polling Activity Update</h2>
+              {{ range .Alerts }}
+              <p><strong>{{ .Annotations.summary }}</strong></p>
+              <p>{{ .Annotations.description }}</p>
+              <hr>
+              {{ end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager
+  namespace: vendfinder
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager
+  template:
+    metadata:
+      labels:
+        app: alertmanager
+    spec:
+      containers:
+      - name: alertmanager
+        image: prom/alertmanager:latest
+        ports:
+        - containerPort: 9093
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+        volumeMounts:
+        - name: config
+          mountPath: /etc/alertmanager
+        - name: secrets
+          mountPath: /etc/secrets
+          readOnly: true
+        args:
+        - --config.file=/etc/alertmanager/alertmanager.yml
+        - --storage.path=/alertmanager
+        - --web.external-url=http://alertmanager.vendfinder.com
+      volumes:
+      - name: config
+        configMap:
+          name: alertmanager-config
+      - name: secrets
+        secret:
+          secretName: notification-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-service
+  namespace: vendfinder
+spec:
+  selector:
+    app: alertmanager
+  ports:
+  - port: 9093
+    targetPort: 9093
+  type: ClusterIP
